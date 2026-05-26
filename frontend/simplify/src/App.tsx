@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { DEFAULT_VERSION } from './config';
-import { VersionPlaceholder, VersionsPage, versionPath } from './router';
+import { VersionPlaceholder, versionPath } from './router';
+import VersionsPage from './pages/VersionsPage';
 import V1Page from './pages/v1/V1Page';
 
 export default function App() {
