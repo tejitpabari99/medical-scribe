@@ -16,6 +16,8 @@ from routes.audio import audio_bp
 from routes.processing import processing_bp
 from routes.try_endpoints import try_bp
 from routes.simplify import simplify_bp
+from routes.simplify_v1_1 import simplify_v1_1_bp
+from routes.upload import upload_bp
 from routes.score import score_bp
 
 all_blueprints = [
@@ -24,5 +26,7 @@ all_blueprints = [
     processing_bp,
     try_bp,
     simplify_bp,
+    simplify_v1_1_bp,
+    upload_bp,
     score_bp,
 ]

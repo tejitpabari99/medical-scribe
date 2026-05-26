@@ -17,8 +17,8 @@ File is held in memory only — never written to GCS or Firestore.
 import io
 import json
 import logging
-import os
 
+from config import SIMPLIFY_DEFAULT_VERSION
 from flask import Blueprint, request, Response, stream_with_context
 
 from routes.simplify_v1_1 import simplify_v1_1
@@ -90,7 +90,7 @@ def simplify_document_v1():
 def simplify_document():
     """Stream simplification pipeline progress + result via SSE."""
 
-    if os.environ.get("SIMPLIFY_DEFAULT_VERSION") == "v1-1":
+    if SIMPLIFY_DEFAULT_VERSION == "v1-1":
         return simplify_v1_1()
 
     return _simplify_document_v1()
