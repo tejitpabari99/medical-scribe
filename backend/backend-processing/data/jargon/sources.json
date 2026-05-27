@@ -1,0 +1,29 @@
+{
+  "ahrq_plain_language": {
+    "name": "AHRQ Health Literacy Universal Precautions Toolkit plain-language words",
+    "fileName": "ahrq_plain_language.json",
+    "sourceFileName": "ahrq_substitution.csv",
+    "link": "https://www.ahrq.gov/sites/default/files/wysiwyg/health-literacy/3rd-edition-toolkit/health-literacy-toolkit-third-edition.pdf",
+    "termKey": "term",
+    "replacementKey": "replacement"
+  },
+  "michigan_medical_dictionary": {
+    "name": "University of Michigan Plain Language Medical Dictionary",
+    "fileName": "michigan_medical_dictionary.json",
+    "sourceFileName": "michigan_medical_data.json",
+    "link": "https://medicaldictionary.lib.umich.edu/",
+    "baseImageUrl": "https://medicaldictionary.lib.umich.edu/",
+    "termKey": "term",
+    "definitionKey": "definition",
+    "imageUrlKey": "imgUrl",
+    "altTextKey": "altText"
+  },
+  "local_abbreviations": {
+    "name": "Local medical abbreviation expansions",
+    "fileName": "abbreviations.json",
+    "link": null,
+    "termKey": "abbreviation",
+    "replacementKey": "expansion",
+    "variantPolicy": "Dotted letter variants are matched automatically at runtime, so bid also matches b.i.d."
+  }
+}

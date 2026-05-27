@@ -2,7 +2,7 @@
 simplify/v1_1/pipeline.py - V1.1 medical document simplification pipeline.
 
 Implements SimplifyPipeline. Key differences from V1:
-  - Deterministic term detection (AHRQ + Michigan + abbreviations) via SQLite
+  - Deterministic term detection (AHRQ + Michigan + abbreviations) via JSON
   - No lab result support; appointment/SOAP notes only
   - No document classification LLM call
   - No scispaCy dependency

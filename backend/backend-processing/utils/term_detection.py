@@ -1,7 +1,7 @@
 """
 term_detection.py - Deterministic term detection for the V1.1 simplify pipeline.
 
-Uses the SQLite jargon database (built by scripts/build_jargon_db.py) to detect:
+Uses the JSON jargon source files directly to detect:
   - AHRQ plain-language substitution candidates
   - Michigan medical dictionary terms to preserve + define
   - Local abbreviation expansions
@@ -16,6 +16,12 @@ from utils.jargon_db import (
     lookup_medical_terms,
     lookup_abbreviations,
     build_terms_glossary,
+)
+from utils.text_normalization import (
+    contains_normalized_term,
+    inflected_aliases,
+    normalize,
+    normalize_for_lookup,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,20 +38,21 @@ def detect_terms(text: str) -> dict:
           "abbreviations": [{term, expansion, source}],
         }
     """
+    normalized_text = normalize_for_lookup(text)
     try:
-        substitution_candidates = lookup_plain_language_terms(text)
+        substitution_candidates = lookup_plain_language_terms(normalized_text)
     except Exception:
         logger.exception("term_detection: AHRQ lookup failed - continuing with empty list")
         substitution_candidates = []
 
     try:
-        preserve_and_define_terms = lookup_medical_terms(text)
+        preserve_and_define_terms = lookup_medical_terms(normalized_text)
     except Exception:
         logger.exception("term_detection: Michigan lookup failed - continuing with empty list")
         preserve_and_define_terms = []
 
     try:
-        abbreviations = lookup_abbreviations(text)
+        abbreviations = lookup_abbreviations(normalized_text)
     except Exception:
         logger.exception("term_detection: abbreviation lookup failed - continuing with empty list")
         abbreviations = []
@@ -78,10 +85,18 @@ def build_glossary_from_simplified_text(
     Returns:
         {"multiple sclerosis": {"definition": "...", "source": "..."}, ...}
     """
-    found_terms = [
-        term for term in preserve_and_define_terms
-        if term["term"].lower() in simplified_text.lower()
-    ]
+    normalized_text = normalize_for_lookup(simplified_text)
+    found_terms = []
+    for term in preserve_and_define_terms:
+        lookup_aliases = [
+            term.get("matched_term") or term["term"],
+            *inflected_aliases(term["term"]),
+        ]
+        if any(
+            contains_normalized_term(normalized_text, normalize(alias))
+            for alias in lookup_aliases
+        ):
+            found_terms.append(term)
     return build_terms_glossary(found_terms)
 
 
