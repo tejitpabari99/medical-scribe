@@ -68,6 +68,11 @@ interface AppointmentNote {
   low_priority: string[];
   follow_ups: string[];
   terms?: TermsMap;
+  raw?: {
+    text: string;
+    simplified_text: string;
+    clarified_text: string;
+  };
   before_score?: PatientScore;
   after_score?: PatientScore;
 }

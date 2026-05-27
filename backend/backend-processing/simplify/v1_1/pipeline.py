@@ -178,7 +178,7 @@ SOURCE NOTE:
 REWRITTEN NOTE:"""
         return self._generate_text(prompt, temperature=0.3, max_tokens=16384)
 
-    def clarify_and_action(self, text: str) -> str:
+    def clarify_and_action(self, text: str, abbreviations: list[dict] | None = None) -> str:
         prompt = f"""You are a health literacy expert helping patients understand what they need to do.
 
 Review the text below and:
@@ -275,8 +275,17 @@ JSON OUTPUT:"""
             preserve_and_define_terms,
         )
 
-        # Merge structured output with deterministic glossary and optional scores.
-        result = {**structured, "terms": terms_glossary}
+        # Merge structured output with deterministic glossary, intermediary raw data,
+        # and optional scores.
+        result = {
+            **structured,
+            "terms": terms_glossary,
+            "raw": {
+                "text": text,
+                "simplified_text": simplified,
+                "clarified_text": clarified,
+            },
+        }
         if before_score is not None:
             result["before_score"] = before_score
         if after_score is not None:

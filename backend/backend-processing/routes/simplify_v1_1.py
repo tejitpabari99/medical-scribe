@@ -218,7 +218,15 @@ def _generate_stream():
         before_score = _score_or_none(text, "before")
         after_score = _score_or_none(clarified, "after")
 
-        result = {**structured, "terms": terms_glossary}
+        result = {
+            **structured,
+            "terms": terms_glossary,
+            "raw": {
+                "text": text,
+                "simplified_text": simplified,
+                "clarified_text": clarified,
+            },
+        }
         if before_score is not None:
             result["before_score"] = before_score
         if after_score is not None:

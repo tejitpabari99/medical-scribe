@@ -3,3 +3,7 @@ node_modules
 *firebase-debug.log
 
 *.firebase
+
+*.venv
+
+dist/
