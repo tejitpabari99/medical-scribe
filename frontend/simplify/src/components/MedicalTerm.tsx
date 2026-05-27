@@ -3,21 +3,60 @@ import {
   useId,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
 
 interface MedicalTermProps {
   term: string;
   definition: string;
-  source: string;
   imgUrl?: string | null;
   altText?: string | null;
 }
 
-export default function MedicalTerm({ term, definition, source, imgUrl, altText }: MedicalTermProps) {
+export default function MedicalTerm({ term, definition, imgUrl, altText }: MedicalTermProps) {
   const [open, setOpen] = useState(false);
+  const [popoverStyle, setPopoverStyle] = useState<CSSProperties>({});
   const popoverId = useId();
   const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open || !ref.current) return;
+
+    const updatePosition = () => {
+      const rect = ref.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const gap = 8;
+      const width = Math.min(300, window.innerWidth - 24);
+      const left = Math.min(
+        Math.max(rect.left, 12),
+        Math.max(12, window.innerWidth - width - 12),
+      );
+      const showAbove = rect.top > 140;
+      const verticalPosition = showAbove
+        ? { bottom: window.innerHeight - rect.top + gap }
+        : { top: rect.bottom + gap };
+
+      setPopoverStyle({
+        position: 'fixed',
+        left,
+        width,
+        zIndex: 1000,
+        ...verticalPosition,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -75,8 +114,13 @@ export default function MedicalTerm({ term, definition, source, imgUrl, altText 
       >
         {term}
       </span>
-      {open && (
-        <span id={popoverId} className="medical-term-popover" role="tooltip">
+      {open && createPortal(
+        <span
+          id={popoverId}
+          className="medical-term-popover"
+          role="tooltip"
+          style={popoverStyle}
+        >
           {imgUrl && (
             <img
               src={imgUrl}
@@ -85,8 +129,8 @@ export default function MedicalTerm({ term, definition, source, imgUrl, altText 
             />
           )}
           <span className="medical-term-popover-definition">{definition}</span>
-          <span className="medical-term-popover-source">{source}</span>
-        </span>
+        </span>,
+        document.body,
       )}
     </span>
   );

@@ -160,7 +160,6 @@ function renderTextWithTerms(text: string, terms: TermsMap): ReactNode {
         key={key++}
         term={displayTerm}
         definition={glossaryEntry.definition}
-        source={glossaryEntry.source}
         imgUrl={glossaryEntry.imgUrl}
         altText={glossaryEntry.altText}
       />,

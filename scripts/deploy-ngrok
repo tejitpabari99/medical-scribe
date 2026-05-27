@@ -1,0 +1,129 @@
+#!/bin/bash
+# deploy-ngrok — Deploy medical-scribe via PM2 + ngrok.
+#   First run:  kills foreign PM2 processes, starts backend/frontend/ngrok fresh.
+#   Re-run:     restarts all three processes to pick up code changes.
+
+set -euo pipefail
+
+PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+BACKEND_NAME="medical-scribe-backend"
+FRONTEND_NAME="simplify-frontend"
+NGROK_NAME="ngrok-frontend"
+
+BACKEND_DIR="$PROJECT_DIR/backend/backend-processing"
+FRONTEND_DIR="$PROJECT_DIR/frontend/simplify"
+NGROK_PORT=5173
+BACKEND_PORT=8080
+
+OUR_NAMES=("$BACKEND_NAME" "$FRONTEND_NAME" "$NGROK_NAME")
+
+# ── helpers ────────────────────────────────────────────────────────────────────
+
+pm2_exists() {
+  pm2 show "$1" 2>/dev/null | grep -qE "^│ status"
+}
+
+contains_element() {
+  local elem="$1"; shift
+  for e in "$@"; do [ "$e" = "$elem" ] && return 0; done
+  return 1
+}
+
+get_ngrok_url() {
+  curl -s http://localhost:4040/api/tunnels 2>/dev/null | \
+    python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    tunnels = d.get('tunnels', [])
+    url = next((t['public_url'] for t in tunnels if t.get('proto') == 'https'), None)
+    if url is None and tunnels:
+        url = tunnels[0]['public_url']
+    print(url if url else 'unavailable')
+except Exception:
+    print('unavailable')
+" 2>/dev/null || echo "unavailable"
+}
+
+# ── detect if this project is already deployed ─────────────────────────────────
+
+ALREADY_DEPLOYED=false
+for name in "${OUR_NAMES[@]}"; do
+  if pm2_exists "$name"; then
+    ALREADY_DEPLOYED=true
+    break
+  fi
+done
+
+# ── update or fresh deploy ─────────────────────────────────────────────────────
+
+if [ "$ALREADY_DEPLOYED" = true ]; then
+  echo "Found existing medical-scribe deployment — restarting all processes..."
+  for name in "${OUR_NAMES[@]}"; do
+    if pm2_exists "$name"; then
+      echo "  Restarting $name"
+      pm2 restart "$name"
+    else
+      echo "  $name not in PM2 — skipping (it will be missing from the tunnel)"
+    fi
+  done
+
+else
+  echo "No existing deployment found."
+
+  # Kill PM2 processes that belong to other projects
+  ALL_PM2=$(pm2 jlist 2>/dev/null | python3 -c "
+import json, sys
+try:
+    procs = json.load(sys.stdin)
+    for p in procs:
+        print(p['name'])
+except:
+    pass
+" 2>/dev/null || true)
+
+  for proc in $ALL_PM2; do
+    if ! contains_element "$proc" "${OUR_NAMES[@]}"; then
+      echo "  Stopping foreign PM2 process: $proc"
+      pm2 delete "$proc" 2>/dev/null || true
+    fi
+  done
+
+  echo "Starting backend (Flask, port $BACKEND_PORT)..."
+  pm2 start "$BACKEND_DIR/app.py" \
+    --name "$BACKEND_NAME" \
+    --interpreter "$BACKEND_DIR/.venv/bin/python" \
+    --cwd "$BACKEND_DIR"
+
+  echo "Starting frontend (Vite, port $NGROK_PORT)..."
+  pm2 start npm \
+    --name "$FRONTEND_NAME" \
+    --cwd "$FRONTEND_DIR" \
+    -- run dev -- --host 0.0.0.0 --port $NGROK_PORT
+
+  echo "Starting ngrok tunnel (→ port $NGROK_PORT)..."
+  pm2 start ngrok \
+    --name "$NGROK_NAME" \
+    --cwd "$PROJECT_DIR" \
+    -- http $NGROK_PORT --log=stdout
+
+  pm2 save
+fi
+
+# ── print public URL ───────────────────────────────────────────────────────────
+
+echo ""
+echo "Waiting for ngrok tunnel..."
+for i in 1 2 3 4 5; do
+  sleep 2
+  URL=$(get_ngrok_url)
+  [ "$URL" != "unavailable" ] && break
+done
+
+echo ""
+echo "Deployed:"
+echo "  Frontend (ngrok): $URL"
+echo "  Backend (local):  http://localhost:$BACKEND_PORT"
+echo ""
+pm2 list
