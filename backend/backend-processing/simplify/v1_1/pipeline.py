@@ -44,18 +44,6 @@ from utils.term_detection import (
 
 logger = logging.getLogger(__name__)
 
-_UNSUPPORTED_DOC_KEYWORDS = [
-    "reference range",
-    "normal range",
-    "test result",
-    "lab value",
-    "specimen",
-    "collected:",
-    "result:",
-    "units:",
-    "flag:",
-]
-
 _STRUCTURING_SCHEMA = """{
   "doc_type": "appointment_note",
   "urgency": "normal|caution|concern|urgent",
@@ -82,13 +70,6 @@ _STRUCTURING_SCHEMA = """{
   "low_priority": ["string - items noted as normal, unremarkable, or informational"],
   "follow_ups": ["string"]
 }"""
-
-
-def _is_likely_lab_result(text: str) -> bool:
-    lower = text.lower()
-    hits = sum(1 for keyword in _UNSUPPORTED_DOC_KEYWORDS if keyword in lower)
-    return hits >= 3
-
 
 def _strip_json_fences(raw: str) -> str:
     match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", raw, re.DOTALL)
@@ -189,8 +170,7 @@ SOURCE NOTE:
 REWRITTEN NOTE:"""
         return self._generate_text(prompt, temperature=0.3, max_tokens=16384)
 
-    def clarify_and_action(self, text: str, abbreviations: list[dict]) -> str:
-        abbrev_block = format_abbreviations_for_prompt(abbreviations)
+    def clarify_and_action(self, text: str) -> str:
         prompt = f"""You are a health literacy expert helping patients understand what they need to do.
 
 Review the text below and:
@@ -201,9 +181,7 @@ Review the text below and:
 5. Do not add urgency unless the source implies urgency.
 6. Do not create new medical advice.
 7. Break multi-step instructions into separate steps.
-8. Expand any remaining abbreviations using these known expansions:
-{abbrev_block}
-9. Output only the improved text; no commentary, no headings.
+8. Output only the improved text; no commentary, no headings.
 
 TEXT:
 {text}
@@ -260,14 +238,8 @@ JSON OUTPUT:"""
         Run the full V1.1 pipeline.
 
         Returns the V1 appointment_note JSON shape, plus a terms glossary and
-        no questions field. Raises ValueError for likely lab-result documents.
+        no questions field.
         """
-        if _is_likely_lab_result(text):
-            raise ValueError(
-                "This version works best for provider notes, appointment summaries, "
-                "and SOAP notes. Lab reports are not supported yet."
-            )
-
         before_score = score_text(text)
 
         term_data = detect_terms(text)
