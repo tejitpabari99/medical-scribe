@@ -23,4 +23,13 @@ export const VERSIONS = [
     apiPath: '/simplify/v1-1',
     isDefault: DEFAULT_VERSION === 'v1-1',
   },
+  {
+    id: 'v1-2',
+    label: 'Version 1.2',
+    path: '/v1-2',
+    description: 'Simplify V1.2 patient note display with clearer appointment sections, warning signs, follow-up questions, and patient-friendly care details.',
+    steps: ['Read input', 'Find medical terms', 'Simplify', 'Clarify care details', 'Structure V1.2 note'],
+    apiPath: '/simplify/v1-2',
+    isDefault: DEFAULT_VERSION === 'v1-2',
+  },
 ] as const;
