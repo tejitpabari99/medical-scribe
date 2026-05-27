@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import { GuestDisclaimer } from '@/components/shared/GuestDisclaimer';
 import { Colors } from '@/constants/Colors';
 import { AppointmentSummaryV12 } from '@/components/pages/summary1-2';
 import { AppointmentSummaryV13, AppointmentSummaryV14 } from '@/components/pages/summary1-3';
+import { downloadAppointmentPdf } from '@/utils/generateAppointmentPdf';
 
 export default function AppointmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -33,6 +34,7 @@ export default function AppointmentDetailScreen() {
   const [appointment, setAppointment] = useState<AppointmentWithId | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
   const isDeletingRef = useRef(false);
 
   // Real-time listener
@@ -78,7 +80,7 @@ export default function AppointmentDetailScreen() {
         const updated: AppointmentWithId = {
           appointmentId: id,
           status: data.status || 'InProgress',
-          appointmentDate: data.appointmentDate.toDate().toISOString(),
+          appointmentDate: data.appointmentDate?.toDate ? data.appointmentDate.toDate().toISOString() : (typeof data.appointmentDate === 'string' ? data.appointmentDate : typeof data.appointmentDate?.seconds === 'number' ? new Date(data.appointmentDate.seconds * 1000).toISOString() : new Date().toISOString()),
           title: data.title,
           doctor: data.doctor,
           location: data.location,
@@ -118,6 +120,18 @@ export default function AppointmentDetailScreen() {
       router.replace('/(tabs)/appointments' as any);
     }
   };
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (!appointment || isDownloading) return;
+    setIsDownloading(true);
+    try {
+      await downloadAppointmentPdf(appointment);
+    } catch (err) {
+      console.error('Failed to download PDF:', err);
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [appointment, isDownloading]);
 
   // Loading state
   if (isLoading) {
@@ -286,7 +300,24 @@ export default function AppointmentDetailScreen() {
             )
           )}
 
-          <DeleteAppointmentButton appointmentId={id!} onDeleteStart={() => { isDeletingRef.current = true; }} onDeleteError={setError} style={{ flex: 1, width: 'auto' }} />
+          <View style={styles.completedActionRow}>
+            <TouchableOpacity
+              style={[styles.downloadButton, isDownloading && styles.downloadButtonDisabled]}
+              onPress={handleDownloadPdf}
+              activeOpacity={0.7}
+              disabled={isDownloading}
+            >
+              {isDownloading ? (
+                <ActivityIndicator size="small" color={Colors.primary} />
+              ) : (
+                <Ionicons name="download-outline" size={18} color={Colors.primary} />
+              )}
+              <Text style={styles.downloadButtonText}>
+                {isDownloading ? 'Preparing…' : 'Download PDF'}
+              </Text>
+            </TouchableOpacity>
+            <DeleteAppointmentButton appointmentId={id!} onDeleteStart={() => { isDeletingRef.current = true; }} onDeleteError={setError} style={{ flex: 1 }} />
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -360,4 +391,15 @@ const styles = StyleSheet.create({
 
   // Processing bottom actions
   processingBottomActions: { paddingHorizontal: 20, paddingBottom: 32, paddingTop: 8 },
+
+  // Completed action row (download + delete)
+  completedActionRow: { flexDirection: 'row', gap: 12 },
+  downloadButton: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: Colors.background, paddingVertical: 14, paddingHorizontal: 20,
+    borderRadius: 12, flex: 1,
+    borderWidth: 1, borderColor: Colors.primary,
+  },
+  downloadButtonDisabled: { opacity: 0.6 },
+  downloadButtonText: { color: Colors.primary, fontSize: 15, fontWeight: '600' },
 });

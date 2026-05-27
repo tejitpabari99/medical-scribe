@@ -42,3 +42,5 @@ Thumbs.db
 serviceAccountKey.json
 !bruno.json
 !collection.bru
+
+data/jargon/jargon.sqlite

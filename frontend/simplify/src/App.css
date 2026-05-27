@@ -1077,3 +1077,130 @@ body {
   flex-direction: column;
   gap: 4px;
 }
+
+/* ============================================================
+   Versions page
+   ============================================================ */
+.app-shell {
+  min-height: 100vh;
+  padding: 64px 24px;
+}
+
+.hero-section {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+}
+
+.eyebrow {
+  color: var(--accent-violet);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.hero-section h1 {
+  color: var(--text-primary);
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin-bottom: 28px;
+}
+
+.versions-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+}
+
+.versions-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.versions-table th,
+.versions-table td {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.versions-table th {
+  background: rgba(124, 58, 237, 0.06);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.versions-table tr:last-child td {
+  border-bottom: none;
+}
+
+.versions-table td {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.versions-table td:first-child {
+  width: 190px;
+}
+
+.versions-table td:nth-child(2) {
+  width: 44%;
+}
+
+.version-table-link {
+  display: inline-block;
+  color: var(--accent-violet);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.version-table-link:hover {
+  color: var(--accent-violet-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.version-default-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid rgba(13, 148, 136, 0.25);
+  border-radius: var(--radius-pill);
+  background: rgba(13, 148, 136, 0.08);
+  color: var(--accent-teal);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.version-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+}
+
+.version-steps li {
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 40px 16px;
+  }
+}

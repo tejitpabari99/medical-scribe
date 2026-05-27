@@ -18,10 +18,12 @@ import io
 import json
 import logging
 
+from config import SIMPLIFY_DEFAULT_VERSION
 from flask import Blueprint, request, Response, stream_with_context
 
+from routes.simplify_v1_1 import simplify_v1_1
+from simplify.v1.pipeline import V1Pipeline
 from utils.pdf_extract import extract_text_from_pdf
-from utils.simplify_ai import SimplifyService
 from utils.scoring import score_text
 
 logger = logging.getLogger(__name__)
@@ -77,9 +79,25 @@ def _extract_text(file_bytes: bytes, filename: str) -> str:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+@simplify_bp.route("/simplify/v1", methods=["POST"])
+def simplify_document_v1():
+    """Stream V1 simplification pipeline progress + result via SSE."""
+
+    return _simplify_document_v1()
+
+
 @simplify_bp.route("/simplify", methods=["POST"])
 def simplify_document():
     """Stream simplification pipeline progress + result via SSE."""
+
+    if SIMPLIFY_DEFAULT_VERSION == "v1-1":
+        return simplify_v1_1()
+
+    return _simplify_document_v1()
+
+
+def _simplify_document_v1():
+    """Stream V1 simplification pipeline progress + result via SSE."""
 
     # ── Validate file upload ──────────────────────────────────────────────────
     if "file" not in request.files:
@@ -98,7 +116,7 @@ def simplify_document():
 
     # ── Stream generator ──────────────────────────────────────────────────────
     def generate():
-        service = SimplifyService()
+        pipeline = V1Pipeline()
 
         try:
             # ── Step 1: Extract text ──────────────────────────────────────────
@@ -124,7 +142,7 @@ def simplify_document():
             # ── Step 2: Classify document type ────────────────────────────────
             yield _sse({"step": 2, "status": "active", "label": STEPS[2]})
             try:
-                classification = service.classify_document(text)
+                classification = pipeline.classify_document(text)
                 doc_type = classification.get("doc_type", "appointment_note")
             except Exception:
                 logger.exception("simplify: document classification failed — defaulting to appointment_note")
@@ -133,7 +151,7 @@ def simplify_document():
 
             # ── Detect jargon (silent) ────────────────────────────────────────
             try:
-                jargon_result = service.detect_jargon(text)
+                jargon_result = pipeline.detect_jargon(text)
                 medical_jargon = jargon_result["medical_jargon"]
                 complex_terms  = jargon_result["complex_terms"]
             except Exception:
@@ -144,7 +162,7 @@ def simplify_document():
             # ── Step 3: Simplify language ─────────────────────────────────────
             yield _sse({"step": 3, "status": "active", "label": STEPS[3]})
             try:
-                simplified = service.simplify_language(text, medical_jargon, complex_terms)
+                simplified = pipeline.simplify_language(text, medical_jargon, complex_terms)
             except Exception as exc:
                 logger.exception("simplify: language simplification failed")
                 yield _sse({"step": "error", "error": f"Simplification failed: {exc}"})
@@ -154,7 +172,7 @@ def simplify_document():
             # ── Step 4: Add definitions ───────────────────────────────────────
             yield _sse({"step": 4, "status": "active", "label": STEPS[4]})
             try:
-                with_defs = service.add_definitions(simplified, medical_jargon)
+                with_defs = pipeline.add_definitions(simplified, medical_jargon)
             except Exception as exc:
                 logger.exception("simplify: definition injection failed — using simplified text")
                 with_defs = simplified
@@ -163,7 +181,7 @@ def simplify_document():
             # ── Step 5: Clarify numbers and actions ───────────────────────────
             yield _sse({"step": 5, "status": "active", "label": STEPS[5]})
             try:
-                clarified = service.clarify_and_action(with_defs)
+                clarified = pipeline.clarify_and_action(with_defs)
             except Exception as exc:
                 logger.exception("simplify: clarification step failed — using previous output")
                 clarified = with_defs
@@ -180,7 +198,7 @@ def simplify_document():
             yield _sse({"step": 6, "status": "active", "label": STEPS[6]})
             yield _sse({"step": 7, "status": "active", "label": STEPS[7]})
             try:
-                structured = service.structure_document(clarified, medical_jargon, doc_type)
+                structured = pipeline.structure_document(clarified, medical_jargon, doc_type)
             except Exception as exc:
                 logger.exception("simplify: document structuring failed")
                 yield _sse({"step": "error", "error": f"Structuring failed: {exc}"})

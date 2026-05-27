@@ -20,6 +20,56 @@ import { analyticsEvents } from './analytics';
 const API_URL_PROCESSING = process.env.EXPO_PUBLIC_API_PROCESSING_URL;
 
 // =============================================================================
+// Safe date conversion — handles Firestore Timestamps, Dates, strings, and
+// plain objects with seconds/nanoseconds (serialised Timestamps).
+// =============================================================================
+
+function safeToISOString(value: any): string {
+  if (!value) return new Date().toISOString();
+
+  // Firestore Timestamp (has .toDate())
+  if (typeof value.toDate === 'function') {
+    return value.toDate().toISOString();
+  }
+
+  // Already a Date object
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  // Serialised Timestamp: { seconds: number, nanoseconds: number }
+  if (typeof value.seconds === 'number') {
+    return new Date(value.seconds * 1000).toISOString();
+  }
+
+  // ISO string or any other string parseable by Date
+  if (typeof value === 'string') {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  }
+
+  // Number (epoch millis)
+  if (typeof value === 'number') {
+    return new Date(value).toISOString();
+  }
+
+  return new Date().toISOString();
+}
+
+function safeToDate(value: any): Date {
+  if (!value) return new Date();
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (value instanceof Date) return value;
+  if (typeof value.seconds === 'number') return new Date(value.seconds * 1000);
+  if (typeof value === 'string') {
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
+  if (typeof value === 'number') return new Date(value);
+  return new Date();
+}
+
+// =============================================================================
 // Session ID — groups all requests from a single user-initiated flow
 // =============================================================================
 
@@ -518,7 +568,7 @@ export async function fetchAppointments(): Promise<AppointmentWithId[]> {
 
         // Mark stale InProgress appointments as Error
         if (data.status === 'InProgress' && data.createdDate) {
-          const createdDate = data.createdDate.toDate();
+          const createdDate = safeToDate(data.createdDate);
           const timeDifferenceMs = currentTime.getTime() - createdDate.getTime();
           const oneHourInMs = 60 * 60 * 1000;
 
@@ -534,7 +584,7 @@ export async function fetchAppointments(): Promise<AppointmentWithId[]> {
             appointments.push({
               appointmentId: docSnap.id,
               status: 'Error',
-              appointmentDate: data.appointmentDate.toDate().toISOString(),
+              appointmentDate: safeToISOString(data.appointmentDate),
               title: data.title,
               doctor: data.doctor,
               location: data.location,
@@ -550,7 +600,7 @@ export async function fetchAppointments(): Promise<AppointmentWithId[]> {
         appointments.push({
           appointmentId: docSnap.id,
           status: data.status || 'InProgress',
-          appointmentDate: data.appointmentDate.toDate().toISOString(),
+          appointmentDate: safeToISOString(data.appointmentDate),
           title: data.title,
           doctor: data.doctor,
           location: data.location,
@@ -601,7 +651,7 @@ export async function getSingleAppointment(
     return {
       appointmentId,
       status: data.status || 'InProgress',
-      appointmentDate: data.appointmentDate.toDate().toISOString(),
+      appointmentDate: safeToISOString(data.appointmentDate),
       title: data.title,
       doctor: data.doctor,
       location: data.location,
@@ -1036,7 +1086,7 @@ export function listenToInProgressAppointments(
             appointments.push({
               appointmentId: docSnap.id,
               status: data.status || 'InProgress',
-              appointmentDate: data.appointmentDate.toDate().toISOString(),
+              appointmentDate: safeToISOString(data.appointmentDate),
               title: data.title,
               doctor: data.doctor,
               location: data.location,
