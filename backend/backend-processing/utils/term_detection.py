@@ -20,8 +20,7 @@ from utils.jargon_db import (
 from utils.text_normalization import (
     contains_normalized_term,
     inflected_aliases,
-    normalize,
-    normalize_for_lookup,
+    normalize_text,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,20 +37,24 @@ def detect_terms(text: str) -> dict:
           "abbreviations": [{term, expansion, source}],
         }
     """
-    normalized_text = normalize_for_lookup(text)
+    # Normalize once so all downstream detectors use identical matching rules.
+    normalized_text = normalize_text(text)
     try:
+        # Fail open: if one dataset lookup fails, keep the pipeline running.
         substitution_candidates = lookup_plain_language_terms(normalized_text)
     except Exception:
         logger.exception("term_detection: AHRQ lookup failed - continuing with empty list")
         substitution_candidates = []
 
     try:
+        # Fail open: keep partial results from other detectors.
         preserve_and_define_terms = lookup_medical_terms(normalized_text)
     except Exception:
         logger.exception("term_detection: Michigan lookup failed - continuing with empty list")
         preserve_and_define_terms = []
 
     try:
+        # Fail open: abbreviation misses should not block simplification.
         abbreviations = lookup_abbreviations(normalized_text)
     except Exception:
         logger.exception("term_detection: abbreviation lookup failed - continuing with empty list")
@@ -85,18 +88,22 @@ def build_glossary_from_simplified_text(
     Returns:
         {"multiple sclerosis": {"definition": "...", "source": "..."}, ...}
     """
-    normalized_text = normalize_for_lookup(simplified_text)
+    # Re-check against final output text so glossary contains only surviving terms.
+    normalized_text = normalize_text(simplified_text)
     found_terms = []
     for term in preserve_and_define_terms:
+        # Check the concrete matched variant first, then canonical inflections.
         lookup_aliases = [
             term.get("matched_term") or term["term"],
             *inflected_aliases(term["term"]),
         ]
         if any(
-            contains_normalized_term(normalized_text, normalize(alias))
+            # Normalize alias candidates to align with normalized output text.
+            contains_normalized_term(normalized_text, normalize_text(alias))
             for alias in lookup_aliases
         ):
             found_terms.append(term)
+    # Convert filtered hits into the compact keyed glossary structure.
     return build_terms_glossary(found_terms)
 
 
@@ -105,6 +112,7 @@ def format_substitution_candidates_for_prompt(candidates: list[dict]) -> str:
     if not candidates:
         return "(none detected)"
     lines = [
+        # Keep format deterministic and brief for prompt-token control.
         f"- \"{candidate['term']}\" -> \"{candidate['replacement']}\""
         + (f"  ({candidate['notes']})" if candidate.get("notes") else "")
         for candidate in candidates[:40]
@@ -116,6 +124,7 @@ def format_medical_terms_for_prompt(terms: list[dict]) -> str:
     """Format Michigan medical terms as a list for the LLM prompt."""
     if not terms:
         return "(none detected)"
+    # Cap list size to avoid overloading the instruction section.
     return "\n".join(f"- {term['term']}" for term in terms[:60])
 
 
@@ -123,6 +132,7 @@ def format_abbreviations_for_prompt(abbreviations: list[dict]) -> str:
     """Format abbreviation expansions as a list for the LLM prompt."""
     if not abbreviations:
         return "(none detected)"
+    # Cap list size to keep prompt context focused on highest-value matches.
     return "\n".join(
         f"- \"{abbreviation['term']}\" -> \"{abbreviation['expansion']}\""
         for abbreviation in abbreviations[:30]

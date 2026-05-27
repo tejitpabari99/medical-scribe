@@ -72,6 +72,7 @@ _STRUCTURING_SCHEMA = """{
 }"""
 
 def _strip_json_fences(raw: str) -> str:
+    # Accept both raw JSON and markdown-fenced JSON from model outputs.
     match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", raw, re.DOTALL)
     return match.group(1).strip() if match else raw.strip()
 
@@ -80,12 +81,15 @@ class V1_1Pipeline(SimplifyPipeline):
     """V1.1 simplification pipeline with deterministic term detection."""
 
     def __init__(self):
+        # Environment-driven model config keeps deployment/runtime configurable.
         project_id = os.environ.get("GCP_PROJECT_ID", "")
         location = os.environ.get("GCP_LOCATION", "us-central1")
         model_name = os.environ.get("VERTEX_AI_MODEL", "gemini-1.5-pro")
 
         vertexai.init(project=project_id, location=location)
         self._model = GenerativeModel(model_name)
+        # Safety blocking is disabled for deterministic backend handling; downstream
+        # validation and prompt constraints enforce output shape/content.
         self._safety = {
             HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
             HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
@@ -99,6 +103,7 @@ class V1_1Pipeline(SimplifyPipeline):
         temperature: float = 0.3,
         max_tokens: int = 8192,
     ) -> str:
+        # Shared low-level model call used by all text-producing stages.
         response = self._model.generate_content(
             prompt,
             generation_config=GenerationConfig(
@@ -115,6 +120,7 @@ class V1_1Pipeline(SimplifyPipeline):
             hasattr(candidate, "finish_reason")
             and candidate.finish_reason == FinishReason.MAX_TOKENS
         ):
+            # Partial output can still be useful; caller handles downstream parsing.
             logger.warning("V1_1Pipeline: hit max tokens; proceeding with partial output")
 
         return response.text.strip()
@@ -125,6 +131,7 @@ class V1_1Pipeline(SimplifyPipeline):
         temperature: float = 0.2,
         max_tokens: int = 8192,
     ) -> dict | list:
+        # Centralized JSON parsing path so fence handling stays consistent.
         raw = self._generate_text(prompt, temperature, max_tokens)
         return json.loads(_strip_json_fences(raw))
 
@@ -135,6 +142,7 @@ class V1_1Pipeline(SimplifyPipeline):
         preserve_and_define_terms: list[dict],
         abbreviations: list[dict],
     ) -> str:
+        # Pre-format deterministic term detections into compact prompt sections.
         sub_block = format_substitution_candidates_for_prompt(substitution_candidates)
         medical_block = format_medical_terms_for_prompt(preserve_and_define_terms)
         abbrev_block = format_abbreviations_for_prompt(abbreviations)
@@ -215,6 +223,7 @@ JSON OUTPUT:"""
         if not isinstance(raw, dict):
             raise ValueError(f"Expected dict from structure step, got {type(raw)}")
 
+        # Backfill missing keys to keep response shape stable for API clients.
         defaults = {
             "doc_type": "appointment_note",
             "urgency": "normal",
@@ -229,6 +238,7 @@ JSON OUTPUT:"""
             if key not in raw:
                 raw[key] = value
 
+        # Enforce V1.1 contract regardless of model drift.
         raw["doc_type"] = "appointment_note"
         raw.pop("questions", None)
         return raw
@@ -240,8 +250,10 @@ JSON OUTPUT:"""
         Returns the V1 appointment_note JSON shape, plus a terms glossary and
         no questions field.
         """
+        # Readability score before rewrite for quality telemetry.
         before_score = score_text(text)
 
+        # Deterministic detections are used to constrain rewrite behavior.
         term_data = detect_terms(text)
         substitution_candidates = term_data["substitution_candidates"]
         preserve_and_define_terms = term_data["preserve_and_define_terms"]
@@ -255,12 +267,15 @@ JSON OUTPUT:"""
         )
         clarified = self.clarify_and_action(simplified, abbreviations)
         structured = self.structure_appointment_note(clarified)
+        # Readability score after rewrite for before/after comparison.
         after_score = score_text(clarified)
+        # Glossary contains only preserved terms still present in final text.
         terms_glossary = build_glossary_from_simplified_text(
             clarified,
             preserve_and_define_terms,
         )
 
+        # Merge structured output with deterministic glossary and optional scores.
         result = {**structured, "terms": terms_glossary}
         if before_score is not None:
             result["before_score"] = before_score

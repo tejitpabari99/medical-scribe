@@ -4,17 +4,13 @@ import re
 import unicodedata
 
 
-def normalize(text: str) -> str:
+def normalize_text(text: str) -> str:
     """Lowercase, strip accents, and collapse whitespace."""
+    # NFKD splits accented characters into base + combining mark so we can
+    # strip non-ASCII marks deterministically.
     nfkd = unicodedata.normalize("NFKD", text)
     ascii_text = nfkd.encode("ascii", "ignore").decode("ascii")
     return " ".join(ascii_text.lower().split())
-
-
-def normalize_for_lookup(text: str) -> str:
-    """Normalize text and pad it for reliable substring boundary checks."""
-    return f" {normalize(text)} "
-
 
 def contains_normalized_term(normalized_text: str, normalized_term: str) -> bool:
     """Return true when a normalized term appears with word boundaries."""
@@ -27,32 +23,35 @@ def term_aliases(term: str) -> list[str]:
     aliases: list[str] = []
     seen: set[str] = set()
 
-    def add(alias: str) -> None:
+    def _add(alias: str) -> None:
         alias = alias.strip().strip(":")
         if alias and alias not in seen:
             seen.add(alias)
             aliases.append(alias)
 
+    # First pass: comma-separated aliases from the source term field.
     for alias in re.split(r"\s*,\s*", term):
-        add(alias)
-
+        _add(alias)
+    
         parenthetical = re.search(r"\(([^)]+)\)", alias)
         if parenthetical:
+            # "stroke (CVA)" -> "stroke", "stroke CVA", and "CVA".
             without_parenthetical = re.sub(r"\s*\([^)]+\)", "", alias).strip()
             parenthetical_text = parenthetical.group(1).strip()
-            add(without_parenthetical)
+            _add(without_parenthetical)
             if len(parenthetical_text) == 1 and parenthetical_text.isalpha():
-                add(f"{without_parenthetical}{parenthetical_text}")
+                _add(f"{without_parenthetical}{parenthetical_text}")
             else:
-                add(f"{without_parenthetical} {parenthetical_text}")
+                _add(f"{without_parenthetical} {parenthetical_text}")
                 for inner_alias in re.split(r"\s+or\s+|\s*/\s*", parenthetical_text):
                     if inner_alias.isupper() and len(inner_alias) > 1:
-                        add(inner_alias)
+                        _add(inner_alias)
 
         if "/" in alias:
+            # "pain/discomfort" and "chest pain/discomfort" produce both options.
             prefix, alternatives = alias.rsplit(" ", 1) if " " in alias else ("", alias)
             for alternative in alternatives.split("/"):
-                add(f"{prefix} {alternative}" if prefix else alternative)
+                _add(f"{prefix} {alternative}" if prefix else alternative)
 
     return aliases or [term]
 
@@ -112,6 +111,8 @@ def inflected_aliases(term: str) -> list[str]:
     """Generate conservative English variants for single-word dictionary terms."""
     aliases = term_aliases(term)
     for alias in list(aliases):
+        # Only inflect simple alphabetic, non-acronym aliases to avoid noisy
+        # expansions that can produce false positives.
         if not re.fullmatch(r"[A-Za-z]+", alias):
             continue
         if alias.isupper():
@@ -120,6 +121,8 @@ def inflected_aliases(term: str) -> list[str]:
             continue
         if alias.endswith("s") and not alias.endswith("ss"):
             continue
+
+        # Noun pluralization plus optional verb forms when alias looks verbal.
         variants = _pluralize_word(alias)
         if _is_probable_verb_base(alias):
             variants.update(_verb_inflections(alias))
