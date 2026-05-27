@@ -10,9 +10,11 @@ interface MedicalTermProps {
   term: string;
   definition: string;
   source: string;
+  imgUrl?: string | null;
+  altText?: string | null;
 }
 
-export default function MedicalTerm({ term, definition, source }: MedicalTermProps) {
+export default function MedicalTerm({ term, definition, source, imgUrl, altText }: MedicalTermProps) {
   const [open, setOpen] = useState(false);
   const popoverId = useId();
   const ref = useRef<HTMLSpanElement>(null);
@@ -75,6 +77,13 @@ export default function MedicalTerm({ term, definition, source }: MedicalTermPro
       </span>
       {open && (
         <span id={popoverId} className="medical-term-popover" role="tooltip">
+          {imgUrl && (
+            <img
+              src={imgUrl}
+              alt={altText ?? term}
+              className="medical-term-popover-image"
+            />
+          )}
           <span className="medical-term-popover-definition">{definition}</span>
           <span className="medical-term-popover-source">{source}</span>
         </span>

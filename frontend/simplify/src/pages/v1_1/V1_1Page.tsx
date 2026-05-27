@@ -44,6 +44,8 @@ interface PatientScore {
 interface GlossaryTerm {
   definition: string;
   source: string;
+  imgUrl?: string | null;
+  altText?: string | null;
 }
 
 type TermsMap = Record<string, GlossaryTerm>;
@@ -120,55 +122,50 @@ function escapeHtml(value: string): string {
 function renderTextWithTerms(text: string, terms: TermsMap): ReactNode {
   if (!terms || Object.keys(terms).length === 0) return text;
 
+  // Sort longest-first so that supersets ("hyper multiple sclerosis") beat subsets ("multiple sclerosis")
+  // when they start at the same position.
   const sortedTerms = Object.keys(terms).sort((a, b) => b.length - a.length);
+  const lowerText = text.toLowerCase();
   const parts: ReactNode[] = [];
-  let remaining = text;
+  let offset = 0;
   let key = 0;
 
-  while (remaining.length > 0) {
-    let matched = false;
+  while (offset < text.length) {
+    // Find the earliest match among all terms; on tie (same start), longest wins (sortedTerms order).
+    let bestStart = -1;
+    let bestTerm = '';
 
     for (const term of sortedTerms) {
-      const index = remaining.toLowerCase().indexOf(term.toLowerCase());
-
-      if (index === 0) {
-        const displayTerm = remaining.slice(0, term.length);
-        const glossaryEntry = terms[term];
-        parts.push(
-          <MedicalTerm
-            key={key++}
-            term={displayTerm}
-            definition={glossaryEntry.definition}
-            source={glossaryEntry.source}
-          />,
-        );
-        remaining = remaining.slice(term.length);
-        matched = true;
-        break;
-      }
-
-      if (index > 0) {
-        parts.push(<span key={key++}>{remaining.slice(0, index)}</span>);
-        const displayTerm = remaining.slice(index, index + term.length);
-        const glossaryEntry = terms[term];
-        parts.push(
-          <MedicalTerm
-            key={key++}
-            term={displayTerm}
-            definition={glossaryEntry.definition}
-            source={glossaryEntry.source}
-          />,
-        );
-        remaining = remaining.slice(index + term.length);
-        matched = true;
-        break;
+      const idx = lowerText.indexOf(term.toLowerCase(), offset);
+      if (idx === -1) continue;
+      if (bestStart === -1 || idx < bestStart) {
+        bestStart = idx;
+        bestTerm = term;
       }
     }
 
-    if (!matched) {
-      parts.push(<span key={key++}>{remaining}</span>);
-      remaining = '';
+    if (bestStart === -1) {
+      parts.push(<span key={key++}>{text.slice(offset)}</span>);
+      break;
     }
+
+    if (bestStart > offset) {
+      parts.push(<span key={key++}>{text.slice(offset, bestStart)}</span>);
+    }
+
+    const displayTerm = text.slice(bestStart, bestStart + bestTerm.length);
+    const glossaryEntry = terms[bestTerm];
+    parts.push(
+      <MedicalTerm
+        key={key++}
+        term={displayTerm}
+        definition={glossaryEntry.definition}
+        source={glossaryEntry.source}
+        imgUrl={glossaryEntry.imgUrl}
+        altText={glossaryEntry.altText}
+      />,
+    );
+    offset = bestStart + bestTerm.length;
   }
 
   return <>{parts}</>;

@@ -88,6 +88,13 @@
   font-style: italic;
 }
 
+.medical-term-popover-image {
+  width: 100%;
+  border-radius: var(--radius-lg);
+  margin-bottom: 4px;
+  object-fit: contain;
+}
+
 .glossary-chip-list {
   display: flex;
   flex-wrap: wrap;

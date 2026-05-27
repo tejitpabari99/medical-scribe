@@ -36,14 +36,15 @@ def _load_json(path: str):
         return json.load(f)
 
 @lru_cache(maxsize=1)
-def _sources() -> dict:
+def _sources() -> list:
     # Read once per process; source metadata is static.
     return _load_json(_SOURCES_PATH)
 
 def _get_source_name(source_key: str) -> str:
     # Resolve friendly source name once so downstream hits carry readable provenance.
+    # sources.json is a JSON array, not {"sources": [...]}.
     try:
-        return next((source["name"] for source in _sources().get("sources", []) if source["id"] == source_key))
+        return next(source["name"] for source in _sources() if source["id"] == source_key)
     except StopIteration:
         raise ValueError(f"Source with key '{source_key}' not found")
 
@@ -194,7 +195,7 @@ def lookup_plain_language_terms(normalized_text: str) -> list[dict]:
                 "replacement": row["replacement"],
                 "source": row["source"],
                 "action": "replace_if_context_fits",
-                "notes": row["notes"] or "",
+                "notes": row.get("notes") or "",
             })
     return hits
 
