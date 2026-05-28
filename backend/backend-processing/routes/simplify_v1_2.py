@@ -95,6 +95,8 @@ def _fetch_from_gcs(doc_id: str) -> tuple[bytes, str]:
     if not blobs:
         raise FileNotFoundError(f"No file found for doc_id={doc_id}")
 
+    if len(blobs) > 1:
+        blobs.sort(key=lambda b: b.updated, reverse=True)
     blob = blobs[0]
     filename = blob.name.split("/")[-1]
     return blob.download_as_bytes(), filename
@@ -162,7 +164,11 @@ def _generate_stream():
         yield _sse({"step": 1, "status": "done", "label": STEPS[1]})
         logger.info("simplify_v1_2: processing source=%s (%d chars)", source, len(text))
 
-        pipeline = V1_2Pipeline()
+        try:
+            pipeline = V1_2Pipeline()
+        except Exception as e:
+            yield _sse({"step": "error", "error": f"Failed to initialize pipeline: {e}"})
+            return
 
         # Step 2: Term detection (deterministic; no LLM)
         yield _sse({"step": 2, "status": "active", "label": STEPS[2]})

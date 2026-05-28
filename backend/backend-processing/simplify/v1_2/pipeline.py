@@ -113,7 +113,10 @@ class V1_2Pipeline(SimplifyPipeline):
     ) -> dict | list:
         # Centralized JSON parsing path so fence handling stays consistent.
         raw = self._generate_text(prompt, temperature, max_tokens)
-        return json.loads(_strip_json_fences(raw))
+        try:
+            return json.loads(_strip_json_fences(raw))
+        except json.JSONDecodeError as e:
+            raise ValueError(f"LLM returned invalid JSON: {e}. Raw start: {raw[:200]!r}") from e
 
     def simplify_language_with_term_plan(
         self,
@@ -159,6 +162,16 @@ REWRITTEN NOTE:"""
         return self._generate_text(prompt, temperature=0.3, max_tokens=16384)
 
     def clarify_and_action(self, text: str, abbreviations: list[dict] | None = None) -> str:
+        abbreviation_section = ""
+        if abbreviations:
+            abbrev_list = "\n".join(
+                f"- \"{a['term']}\" -> \"{a['expansion']}\""
+                for a in abbreviations[:30]
+            )
+            abbreviation_section = f"""
+If any of these abbreviations remain in the text, expand them:
+{abbrev_list}
+"""
         prompt = f"""You are a health literacy expert helping patients understand what they need to do.
 
 Review the text below and:
@@ -170,7 +183,7 @@ Review the text below and:
 6. Do not create new medical advice.
 7. Break multi-step instructions into separate steps.
 8. Output only the improved text; no commentary, no headings.
-
+{abbreviation_section}
 TEXT:
 {text}
 

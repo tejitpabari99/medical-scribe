@@ -243,6 +243,7 @@ function buildPdfHtml(result: AppointmentNote): string {
         <strong>${escapeHtml(t.plain_name ? `${t.plain_name} (${t.title})` : t.title)}</strong>
         ${t.why ? `<br><span style="color:#1D4ED8;font-size:13px;">Why: ${escapeHtml(t.why)}</span>` : ''}
         ${t.description ? `<br><span style="color:#6B7280;font-size:13px;">${escapeHtml(t.description)}</span>` : ''}
+        ${t.preparation ? `<p><strong>Preparation:</strong> ${t.preparation}</p>` : ''}
       </div>`,
     ).join('');
     sections.push(`${h2('Tests')}${items}`);
@@ -449,6 +450,7 @@ function AppointmentNoteV12View({ result }: { result: AppointmentNote }) {
       {result.summary && (
         <div className="result-card" style={{ background: 'var(--surface-green-muted, #E8EDE3)' }}>
           <div className="result-card-body" style={{ paddingTop: '16px' }}>
+            <h2 style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.5rem' }}>What You Need to Know</h2>
             <p className="summary-paragraph">{withTerms(result.summary)}</p>
           </div>
         </div>
@@ -477,7 +479,13 @@ function AppointmentNoteV12View({ result }: { result: AppointmentNote }) {
               Compared to last visit: {withTerms(result.diagnosis.changed_since_last_visit)}
             </p>
           )}
-          {(result.diagnosis.details ?? []).map((det, i) => (
+          {(() => {
+            const SEVERITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
+            const sortedDetails = [...(result.diagnosis.details ?? [])].sort(
+              (a, b) => (SEVERITY_ORDER[a.severity?.toLowerCase() ?? ''] ?? 99) - (SEVERITY_ORDER[b.severity?.toLowerCase() ?? ''] ?? 99)
+            );
+            return sortedDetails;
+          })().map((det, i) => (
             <div key={i} style={{ paddingLeft: '12px', borderLeft: '4px solid #EF4444', marginBottom: '10px' }}>
               <strong>{withTerms(det.plain_name ? `${det.plain_name} (${det.title})` : det.title)}</strong>
               <p style={{ color: 'var(--text-secondary)', margin: '4px 0', fontSize: '0.9rem' }}>{withTerms(det.description)}</p>
@@ -541,7 +549,7 @@ function AppointmentNoteV12View({ result }: { result: AppointmentNote }) {
       )}
 
       {result.other?.length > 0 && (
-        <ResultCard color="gray" icon="ℹ️" title="Other Instructions" collapsible defaultOpen={false}>
+        <ResultCard color="gray" icon="ℹ️" title="Other Instructions" collapsible defaultOpen={true}>
           {result.other.map((item, i) => (
             <div key={i} style={{ marginBottom: '10px' }}>
               <strong>{withTerms(item.title)}</strong>
@@ -588,7 +596,28 @@ function AppointmentNoteV12View({ result }: { result: AppointmentNote }) {
             These are suggested questions based on what was discussed.
           </p>
           <ul className="result-list">
-            {result.questions.map((q, i) => <li key={i} style={{ color: '#0369A1' }}>{withTerms(q)}</li>)}
+            {result.questions.map((q, i) => (
+              <li key={i} style={{ color: '#0369A1', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                <span style={{ flex: 1 }}>{withTerms(q)}</span>
+                <button
+                  onClick={() => navigator.clipboard.writeText(q)}
+                  style={{
+                    background: 'none',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-pill)',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.75rem',
+                    padding: '2px 10px',
+                    cursor: 'pointer',
+                    fontFamily: 'Inter, sans-serif',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                >
+                  Copy
+                </button>
+              </li>
+            ))}
           </ul>
         </ResultCard>
       )}

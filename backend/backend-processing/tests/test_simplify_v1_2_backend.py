@@ -81,6 +81,14 @@ def test_simplify_v1_2_schema_file_is_valid_and_complete():
     assert schema["warning_signs"][0]["urgency"]
     assert len(schema["questions"]) == 3
 
+    assert "why" in schema["medications"][0], "medications items must have a 'why' field (spec requirement)"
+    assert "main_conclusion" in schema["diagnosis"], "diagnosis must have a 'main_conclusion' field"
+    assert "plain_name" in schema["diagnosis"]["details"][0], "diagnosis.details items must have a 'plain_name' field"
+    assert "what_it_means_for_you" in schema["diagnosis"]["details"][0], "diagnosis.details items must have a 'what_it_means_for_you' field"
+    assert "why" in schema["other"][0], "other items must have a 'why' field (spec requirement)"
+    assert "why" in schema["tests"][0], "tests items must have a 'why' field (spec requirement)"
+    assert "preparation" in schema["tests"][0], "tests items must have a 'preparation' field"
+
 
 def test_simplify_backend_sources_compile_without_importing_vertexai():
     paths = [
