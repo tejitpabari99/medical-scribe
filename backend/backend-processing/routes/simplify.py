@@ -22,6 +22,7 @@ from config import SIMPLIFY_DEFAULT_VERSION
 from flask import Blueprint, request, Response, stream_with_context
 
 from routes.simplify_v1_1 import simplify_v1_1
+from routes.simplify_v1_2 import simplify_v1_2
 from simplify.v1.pipeline import V1Pipeline
 from utils.pdf_extract import extract_text_from_pdf
 from utils.scoring import score_text
@@ -89,6 +90,9 @@ def simplify_document_v1():
 @simplify_bp.route("/simplify", methods=["POST"])
 def simplify_document():
     """Stream simplification pipeline progress + result via SSE."""
+
+    if SIMPLIFY_DEFAULT_VERSION == "v1-2":
+        return simplify_v1_2()
 
     if SIMPLIFY_DEFAULT_VERSION == "v1-1":
         return simplify_v1_1()
